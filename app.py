@@ -14,12 +14,110 @@ st.set_page_config(
 st.sidebar.title("🏢 Smart Vending ATX")
 page = st.sidebar.radio(
     "Navigate",
-    ["Dashboard", "SKU Mapper"],
+    ["Dashboard", "Upload Data", "SKU Mapper"],
     index=0
 )
 
+# Upload Data page
+if page == "Upload Data":
+    st.title("📤 Upload Sales Data")
+    st.markdown("Import transaction data from your POS systems.")
+    st.markdown("---")
+    
+    from import_transactions import import_file, get_transaction_summary
+    
+    # File upload
+    st.subheader("Upload POS Export Files")
+    st.markdown("""
+    **Supported files:**
+    - **Haha AI:** Order details (.xlsx)
+    - **Nayax:** DynamicTransactionsMonitorMega (.csv)
+    - **Cantaloupe:** usat-transaction-log (.xlsx)
+    """)
+    
+    uploaded_files = st.file_uploader(
+        "Drop files here or click to browse",
+        type=["xlsx", "xls", "csv"],
+        accept_multiple_files=True
+    )
+    
+    if uploaded_files:
+        if st.button("🚀 Import Files", type="primary"):
+            results = []
+            progress = st.progress(0)
+            
+            for i, uploaded_file in enumerate(uploaded_files):
+                # Save to temp location
+                temp_path = Path(__file__).parent / "uploads" / uploaded_file.name
+                temp_path.parent.mkdir(exist_ok=True)
+                
+                with open(temp_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+                
+                # Import
+                stats = import_file(temp_path)
+                results.append(stats)
+                
+                progress.progress((i + 1) / len(uploaded_files))
+            
+            # Show results
+            st.subheader("Import Results")
+            
+            total_imported = sum(r["imported"] for r in results)
+            total_duplicates = sum(r["duplicates"] for r in results)
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Files Processed", len(results))
+            with col2:
+                st.metric("Transactions Imported", total_imported)
+            with col3:
+                st.metric("Duplicates Skipped", total_duplicates)
+            
+            # Details per file
+            for stats in results:
+                with st.expander(f"📄 {stats['filename']}"):
+                    st.write(f"**Source:** {stats['source_system']}")
+                    st.write(f"**Parsed:** {stats['total_parsed']} transactions")
+                    st.write(f"**Imported:** {stats['imported']} new")
+                    st.write(f"**Duplicates:** {stats['duplicates']} skipped")
+                    if stats["errors"]:
+                        st.error(f"Errors: {', '.join(stats['errors'])}")
+    
+    # Current database summary
+    st.markdown("---")
+    st.subheader("📊 Database Summary")
+    
+    summary = get_transaction_summary()
+    
+    if summary["total_transactions"] > 0:
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Total Transactions", f"{summary['total_transactions']:,}")
+        with col2:
+            st.metric("Total Revenue", f"${summary['total_revenue']:,.2f}")
+        with col3:
+            avg = summary['total_revenue'] / summary['total_transactions'] if summary['total_transactions'] else 0
+            st.metric("Avg Transaction", f"${avg:.2f}")
+        
+        st.write(f"**Date Range:** {summary['date_range']['min']} to {summary['date_range']['max']}")
+        
+        # By source
+        st.markdown("**By POS System:**")
+        source_data = []
+        for source, data in summary["by_source"].items():
+            source_data.append({
+                "Source": source,
+                "Transactions": data["count"],
+                "Revenue": f"${data['revenue']:,.2f}"
+            })
+        if source_data:
+            st.dataframe(pd.DataFrame(source_data), hide_index=True)
+    else:
+        st.info("No transactions imported yet. Upload your POS export files above to get started.")
+
 # SKU Mapper page
-if page == "SKU Mapper":
+elif page == "SKU Mapper":
     st.title("📋 SKU Mapper")
     st.markdown("View and edit product mappings across POS systems.")
     st.markdown("---")
@@ -115,13 +213,79 @@ if page == "SKU Mapper":
 else:
     st.title("🏢 Smart Vending ATX Dashboard")
     st.markdown("---")
-
-    st.info("✨ Dashboard is being built! Check back soon.")
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Total Revenue", "$0.00", "0%")
-    with col2:
-        st.metric("Total Transactions", "0", "0")
-    with col3:
-        st.metric("Avg Transaction", "$0.00", "0%")
+    
+    from import_transactions import get_transaction_summary, get_db_connection
+    
+    summary = get_transaction_summary()
+    
+    if summary["total_transactions"] > 0:
+        # Key metrics
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Total Revenue", f"${summary['total_revenue']:,.2f}")
+        with col2:
+            st.metric("Total Transactions", f"{summary['total_transactions']:,}")
+        with col3:
+            avg = summary['total_revenue'] / summary['total_transactions']
+            st.metric("Avg Transaction", f"${avg:.2f}")
+        
+        st.markdown("---")
+        
+        # Revenue by source
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("Revenue by POS System")
+            source_data = []
+            for source, data in summary["by_source"].items():
+                source_data.append({
+                    "Source": source,
+                    "Revenue": data["revenue"],
+                })
+            if source_data:
+                fig = px.pie(
+                    pd.DataFrame(source_data), 
+                    values="Revenue", 
+                    names="Source",
+                    hole=0.4
+                )
+                st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            st.subheader("Transactions by POS System")
+            source_data = []
+            for source, data in summary["by_source"].items():
+                source_data.append({
+                    "Source": source,
+                    "Transactions": data["count"],
+                })
+            if source_data:
+                fig = px.bar(
+                    pd.DataFrame(source_data),
+                    x="Source",
+                    y="Transactions",
+                    color="Source"
+                )
+                fig.update_layout(showlegend=False)
+                st.plotly_chart(fig, use_container_width=True)
+        
+        # Top products
+        st.subheader("Top 10 Products by Revenue")
+        conn = get_db_connection()
+        top_products = pd.read_sql_query("""
+            SELECT 
+                COALESCE(NULLIF(master_name, ''), product_name_original) as Product,
+                SUM(quantity) as Quantity,
+                SUM(amount) as Revenue
+            FROM transactions
+            GROUP BY Product
+            ORDER BY Revenue DESC
+            LIMIT 10
+        """, conn)
+        conn.close()
+        
+        if not top_products.empty:
+            top_products["Revenue"] = top_products["Revenue"].apply(lambda x: f"${x:,.2f}")
+            st.dataframe(top_products, hide_index=True, use_container_width=True)
+    else:
+        st.info("✨ No data yet! Go to **Upload Data** to import your POS exports.")
