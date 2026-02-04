@@ -100,6 +100,56 @@ def load_sku_mapping() -> dict:
     return mapping
 
 
+def _normalize_product_name(name: str) -> str:
+    return re.sub(r"\s+", " ", str(name).strip().lower())
+
+
+def load_haha_product_sales_details() -> dict:
+    """Load Haha AI Product Sales Details for per-item pricing/quantity."""
+    data_dir = Path(__file__).parent / "data"
+    uploads_dir = Path(__file__).parent / "uploads"
+    candidates = (
+        list(data_dir.glob("Product Sales Details*.xlsx"))
+        + list(data_dir.glob("Product Sales Details*.csv"))
+        + list(uploads_dir.glob("Product Sales Details*.xlsx"))
+        + list(uploads_dir.glob("Product Sales Details*.csv"))
+    )
+    if not candidates:
+        return {}
+
+    path = candidates[0]
+    try:
+        if path.suffix.lower() == ".csv":
+            df = pd.read_csv(path)
+        else:
+            df = pd.read_excel(path, engine="openpyxl")
+    except Exception as e:
+        print(f"Error reading Product Sales Details: {e}")
+        return {}
+
+    cols = {c: str(c).lower().strip() for c in df.columns}
+    product_col = next((c for c, lc in cols.items() if lc == "product"), None)
+    order_col = next((c for c, lc in cols.items() if "order number" in lc), None)
+    sales_col = next((c for c, lc in cols.items() if "sales volume" in lc), None)
+    amount_col = next((c for c, lc in cols.items() if "amount received" in lc), None)
+
+    if not all([product_col, order_col, sales_col, amount_col]):
+        return {}
+
+    df = df[[product_col, order_col, sales_col, amount_col]].copy()
+    df[product_col] = df[product_col].astype(str)
+    df[order_col] = df[order_col].astype(str)
+    df[sales_col] = pd.to_numeric(df[sales_col], errors="coerce").fillna(0)
+    df[amount_col] = pd.to_numeric(df[amount_col], errors="coerce").fillna(0)
+
+    df["key"] = df[order_col].str.strip() + "||" + df[product_col].apply(_normalize_product_name)
+    grouped = df.groupby("key", as_index=False).agg(
+        Amount=(amount_col, "sum"),
+        SalesVolume=(sales_col, "sum"),
+    )
+    return dict(zip(grouped["key"], zip(grouped["Amount"], grouped["SalesVolume"])))
+
+
 def lookup_sku(product_name: str, source_system: str, mapping: dict) -> dict:
     """Look up SKU info for a product name."""
     if not product_name:
@@ -119,7 +169,7 @@ def lookup_sku(product_name: str, source_system: str, mapping: dict) -> dict:
     return {"master_sku": "", "master_name": product_name, "product_family": ""}
 
 
-def parse_haha_ai_order_details(filepath: Path, mapping: dict) -> list[dict]:
+def parse_haha_ai_order_details(filepath: Path, mapping: dict, psd_map: dict | None = None) -> list[dict]:
     """Parse Haha AI Order details file."""
     transactions = []
     
@@ -154,12 +204,33 @@ def parse_haha_ai_order_details(filepath: Path, mapping: dict) -> list[dict]:
         if not items:
             items = ["Unknown Item"]
         
-        for i, item in enumerate(items):
-            # Create unique transaction ID for each item in order
+        matched_items = []
+        unmatched_items = []
+        used_keys = set()
+
+        for item in items:
+            if psd_map:
+                key = order_num.strip() + "||" + _normalize_product_name(item)
+                if key in psd_map and key not in used_keys:
+                    amount, qty = psd_map[key]
+                    matched_items.append((item, amount, qty))
+                    used_keys.add(key)
+                    continue
+            unmatched_items.append(item)
+
+        matched_total = sum(m[1] for m in matched_items)
+        remaining_total = max(float(amount_received) - matched_total, 0)
+        unmatched_amount = remaining_total / len(unmatched_items) if unmatched_items else 0
+
+        item_rows = []
+        for item, amount, qty in matched_items:
+            item_rows.append((item, amount, qty if qty else 1))
+        for item in unmatched_items:
+            item_rows.append((item, unmatched_amount, 1))
+
+        for i, (item, amount, qty) in enumerate(item_rows):
             txn_id = f"{order_num}_{i}"
-            
             sku_info = lookup_sku(item, "Haha_AI", mapping)
-            
             transactions.append({
                 "transaction_id": txn_id,
                 "source_system": "Haha_AI",
@@ -169,8 +240,8 @@ def parse_haha_ai_order_details(filepath: Path, mapping: dict) -> list[dict]:
                 "master_sku": sku_info["master_sku"],
                 "master_name": sku_info["master_name"],
                 "product_family": sku_info["product_family"],
-                "quantity": 1,
-                "amount": float(amount_received) / len(items) if items else 0,
+                "quantity": float(qty),
+                "amount": float(amount),
                 "payment_method": "",
             })
     
@@ -247,6 +318,21 @@ def parse_cantaloupe_usat(filepath: Path, mapping: dict) -> list[dict]:
         print(f"Error reading {filepath}: {e}")
         return transactions
     
+    # Detect payment method and cash/card amount columns when available
+    col_map = {c: str(c).lower().strip() for c in df.columns}
+    payment_method_col = next(
+        (c for c, lc in col_map.items() if any(k in lc for k in ["payment", "tender", "method", "type"])),
+        None
+    )
+    cash_amount_cols = [
+        c for c, lc in col_map.items()
+        if "cash" in lc and any(k in lc for k in ["amount", "total", "value"])
+    ]
+    card_amount_cols = [
+        c for c, lc in col_map.items()
+        if any(k in lc for k in ["card", "credit", "debit"]) and any(k in lc for k in ["amount", "total", "value"])
+    ]
+
     for idx, row in df.iterrows():
         timestamp = row.iloc[0] if len(row) > 0 else ""
         if pd.isna(timestamp) or str(timestamp).strip() == "":
@@ -275,6 +361,34 @@ def parse_cantaloupe_usat(filepath: Path, mapping: dict) -> list[dict]:
         
         sku_info = lookup_sku(product_name, "Cantaloupe", mapping)
         
+        # Determine payment method
+        payment_method = ""
+        if payment_method_col:
+            payment_value = row.get(payment_method_col, "")
+            if pd.notna(payment_value) and str(payment_value).strip():
+                payment_method = str(payment_value).strip()
+
+        if not payment_method and cash_amount_cols:
+            cash_total = 0
+            for c in cash_amount_cols:
+                val = pd.to_numeric(row.get(c, 0), errors="coerce")
+                if pd.notna(val):
+                    cash_total += float(val)
+            if cash_total > 0:
+                payment_method = "Cash"
+
+        if not payment_method and card_amount_cols:
+            card_total = 0
+            for c in card_amount_cols:
+                val = pd.to_numeric(row.get(c, 0), errors="coerce")
+                if pd.notna(val):
+                    card_total += float(val)
+            if card_total > 0:
+                payment_method = "Card"
+
+        if not payment_method:
+            payment_method = "Card"
+
         transactions.append({
             "transaction_id": txn_id,
             "source_system": "Cantaloupe",
@@ -286,7 +400,7 @@ def parse_cantaloupe_usat(filepath: Path, mapping: dict) -> list[dict]:
             "product_family": sku_info["product_family"],
             "quantity": float(quantity) if pd.notna(quantity) else 1,
             "amount": float(total) if pd.notna(total) else 0,
-            "payment_method": "Card",
+            "payment_method": payment_method,
         })
     
     return transactions
@@ -311,7 +425,8 @@ def import_file(filepath: Path) -> dict:
     
     if "order" in name_lower and "details" in name_lower:
         stats["source_system"] = "Haha_AI"
-        transactions = parse_haha_ai_order_details(filepath, mapping)
+        psd_map = load_haha_product_sales_details()
+        transactions = parse_haha_ai_order_details(filepath, mapping, psd_map)
     elif "dynamic" in name_lower or "mega" in name_lower:
         stats["source_system"] = "Nayax"
         transactions = parse_nayax_dynamic(filepath, mapping)

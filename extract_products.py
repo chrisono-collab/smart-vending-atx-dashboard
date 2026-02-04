@@ -221,6 +221,7 @@ def main():
                     "Master_SKU": f"SKU{sku_num:04d}",
                     "Master_Name": product_name,
                     "Product_Family": "",
+                    "Unit_Cost": "",
                     "Status": "New",
                     "Haha_AI_Name": product_name if product_name in systems["Haha_AI_Name"] else "",
                     "Nayax_Name": product_name if product_name in systems["Nayax_Name"] else "",
@@ -228,9 +229,11 @@ def main():
                 }
                 new_rows.append(row)
             
-            # Add Status column to existing if not present
+            # Add Status and Unit_Cost columns to existing if not present
             if "Status" not in existing_df.columns:
                 existing_df["Status"] = ""
+            if "Unit_Cost" not in existing_df.columns:
+                existing_df["Unit_Cost"] = ""
             
             # Append new rows
             new_df = pd.DataFrame(new_rows)
@@ -253,6 +256,7 @@ def main():
                 "Master_SKU": [f"SKU{i+1:04d}" for i in range(len(all_products))],
                 "Master_Name": all_products,
                 "Product_Family": "",
+                "Unit_Cost": "",
                 "Status": "New",
                 "Haha_AI_Name": "",
                 "Nayax_Name": "",
@@ -267,7 +271,7 @@ def main():
         print(f"\n✅ Created new mapping with {len(df)} products (all marked as 'New')")
 
     # Reorder columns
-    col_order = ["Master_SKU", "Master_Name", "Product_Family", "Status", "Haha_AI_Name", "Nayax_Name", "Cantaloupe_Name"]
+    col_order = ["Master_SKU", "Master_Name", "Product_Family", "Unit_Cost", "Status", "Haha_AI_Name", "Nayax_Name", "Cantaloupe_Name"]
     df = df[[c for c in col_order if c in df.columns]]
     
     df.to_csv(output_path, index=False)
