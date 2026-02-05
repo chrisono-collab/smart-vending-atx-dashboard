@@ -897,9 +897,9 @@ export default function DashboardClient({ transactions, locations }: DashboardCl
                       boxShadow: "0 4px 20px rgba(118, 255, 3, 0.1)",
                     }}
                     labelStyle={{ color: "#fff", fontWeight: 600 }}
-                    formatter={(value: number | undefined, name: string) => {
+                    formatter={(value: number | undefined, name: string | undefined) => {
                       if (name === "revenue") return [`$${value?.toFixed(2)}`, "Revenue"];
-                      return [value, name];
+                      return [value, name || ""];
                     }}
                   />
                   <Bar
