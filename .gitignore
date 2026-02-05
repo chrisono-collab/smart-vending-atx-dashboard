@@ -49,3 +49,14 @@ Inventory*.csv
 sku_mapping*.csv
 unmapped_products_report.csv
 location_mapping.csv
+
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# uploads and databases
+uploads/*.xlsx
+uploads/*.csv
+data/*.db
+*.db
