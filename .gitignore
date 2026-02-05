@@ -39,3 +39,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# sensitive data files
+/data/raw/*.csv
+/data/processed/*.csv
+Product SKU Map.csv
+Product SKU Map_OLD.csv
+Inventory*.csv
+sku_mapping*.csv
+unmapped_products_report.csv
+location_mapping.csv
