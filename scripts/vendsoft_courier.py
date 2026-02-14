@@ -50,8 +50,12 @@ def fetch_transaction_log():
             log(f"Navigating to {VENDSOFT_URL}")
             page.goto(VENDSOFT_URL, timeout=30000)
 
-            # Wait for login page to load
+            # Wait for login page to load (React/MUI app needs time)
             page.wait_for_load_state("networkidle")
+            time.sleep(3)  # Extra time for React to render
+
+            # Wait for email field to be visible
+            page.wait_for_selector('input[name="email"]', state="visible", timeout=10000)
 
             # Fill in login credentials
             log("Entering credentials...")
