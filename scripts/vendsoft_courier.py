@@ -48,19 +48,25 @@ def fetch_transaction_log():
         try:
             # Navigate to Vendsoft
             log(f"Navigating to {VENDSOFT_URL}")
-            page.goto(VENDSOFT_URL, timeout=30000)
+            page.goto(VENDSOFT_URL, timeout=60000)
 
             # Wait for login page to load (React/MUI app needs time)
-            page.wait_for_load_state("networkidle")
-            time.sleep(3)  # Extra time for React to render
+            page.wait_for_load_state("domcontentloaded")
+            time.sleep(5)  # Extra time for React to render
 
-            # Wait for email field to be visible
-            page.wait_for_selector('input[name="email"]', state="visible", timeout=10000)
+            # Take screenshot for debugging
+            screenshots_dir = Path(__file__).parent / "screenshots"
+            screenshots_dir.mkdir(exist_ok=True)
+            page.screenshot(path=str(screenshots_dir / "login_page.png"))
+            log(f"Screenshot saved to {screenshots_dir / 'login_page.png'}")
+
+            # Wait for email field to be visible with longer timeout
+            page.wait_for_selector('input[id="email"]', state="visible", timeout=30000)
 
             # Fill in login credentials
             log("Entering credentials...")
-            page.fill('input[name="email"]', VENDSOFT_USER)
-            page.fill('input[name="password"]', VENDSOFT_PASS)
+            page.fill('input[id="email"]', VENDSOFT_USER)
+            page.fill('input[id="password"]', VENDSOFT_PASS)
 
             # Click login button
             log("Clicking login button...")
