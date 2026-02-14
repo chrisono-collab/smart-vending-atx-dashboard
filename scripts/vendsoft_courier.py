@@ -74,21 +74,47 @@ def fetch_transaction_log():
 
             # Click on Reports in left pane
             page.click('text=Reports')
-            time.sleep(2)
+            time.sleep(3)
+
+            # Take screenshot to debug Reports menu
+            screenshots_dir = Path(__file__).parent / "screenshots"
+            screenshots_dir.mkdir(exist_ok=True)
+            page.screenshot(path=str(screenshots_dir / "reports_menu.png"))
+            log(f"Screenshot saved: reports_menu.png")
+
+            # Log all links on page for debugging
+            links = page.query_selector_all('a')
+            log(f"Found {len(links)} links on page")
+            for link in links[:20]:  # First 20 links
+                text = link.inner_text()
+                if text and ('transaction' in text.lower() or 'report' in text.lower()):
+                    log(f"  Link: '{text}'")
 
             # Scroll down to find Transaction Log (it's further down the list)
             log("Scrolling to find Transaction Log...")
-            page.mouse.wheel(0, 500)  # Scroll down 500px
-            time.sleep(1)
+            page.evaluate("window.scrollBy(0, 500)")  # Scroll page down
+            time.sleep(2)
 
-            # Try multiple variations of the Transaction Log link
-            if page.query_selector('text="Transaction Log"'):
-                page.click('text="Transaction Log"')
-            elif page.query_selector('text="Transaction Logs"'):
-                page.click('text="Transaction Logs"')
-            elif page.query_selector('a:has-text("Transaction Log")'):
-                page.click('a:has-text("Transaction Log")')
-            else:
+            # Take another screenshot after scrolling
+            page.screenshot(path=str(screenshots_dir / "reports_menu_scrolled.png"))
+            log(f"Screenshot saved: reports_menu_scrolled.png")
+
+            # Try multiple case-insensitive variations
+            transaction_log_found = False
+            for selector in [
+                'text=/transaction log/i',  # Case insensitive regex
+                'text=/transaction logs/i',
+                'a:has-text("Transaction")',  # Partial match
+                '[href*="transaction"]',  # URL contains transaction
+                '[href*="Transaction"]',
+            ]:
+                if page.query_selector(selector):
+                    log(f"Found Transaction Log with selector: {selector}")
+                    page.click(selector)
+                    transaction_log_found = True
+                    break
+
+            if not transaction_log_found:
                 log("ERROR: Could not find Transaction Log link")
                 return None
 
