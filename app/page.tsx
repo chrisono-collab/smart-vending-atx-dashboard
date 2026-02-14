@@ -1,6 +1,5 @@
-import { readFileSync } from "fs";
-import { join } from "path";
 import DashboardClient from "./DashboardClient";
+import { createClient } from "@supabase/supabase-js";
 
 export interface Transaction {
   date: string;
@@ -8,37 +7,54 @@ export interface Transaction {
   Master_SKU: string;
   Master_Name: string;
   Product_Family: string;
+  Type: string;
   revenue: number;
   cost: number;
   quantity: number;
   profit: number;
   gross_margin_percent: number;
+  mapping_tier?: string;
 }
 
-function parseCSV(filePath: string): Transaction[] {
-  const fileContent = readFileSync(filePath, "utf-8");
-  const lines = fileContent.trim().split("\n");
+async function fetchTransactions(): Promise<Transaction[]> {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
-  return lines.slice(1).map((line) => {
-    const values = line.split(",");
-    return {
-      date: values[0],
-      location: values[1],
-      Master_SKU: values[2],
-      Master_Name: values[3],
-      Product_Family: values[4],
-      revenue: parseFloat(values[5]) || 0,
-      cost: parseFloat(values[6]) || 0,
-      quantity: parseFloat(values[7]) || 0,
-      profit: parseFloat(values[8]) || 0,
-      gross_margin_percent: parseFloat(values[9]) || 0,
-    };
-  });
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .order('date', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching transactions:', error);
+      return [];
+    }
+
+    // Transform Supabase data to match Transaction interface
+    return data.map((row: any) => ({
+      date: row.date,
+      location: row.location,
+      Master_SKU: row.master_sku,
+      Master_Name: row.master_name,
+      Product_Family: row.product_family || '',
+      Type: row.type || 'Unknown',
+      revenue: parseFloat(row.revenue),
+      cost: parseFloat(row.cost),
+      quantity: parseInt(row.quantity),
+      profit: parseFloat(row.profit),
+      gross_margin_percent: parseFloat(row.gross_margin_percent),
+      mapping_tier: row.mapping_tier || undefined,
+    }));
+  } catch (error) {
+    console.error('Error in fetchTransactions:', error);
+    return [];
+  }
 }
 
-export default function Dashboard() {
-  const csvPath = join(process.cwd(), "data/processed/master_dashboard_data.csv");
-  const transactions = parseCSV(csvPath);
+export default async function Dashboard() {
+  const transactions = await fetchTransactions();
 
   // Get unique locations
   const locations = Array.from(new Set(transactions.map(t => t.location))).sort();

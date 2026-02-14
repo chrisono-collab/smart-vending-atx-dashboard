@@ -42,7 +42,6 @@ next-env.d.ts
 
 # sensitive data files
 /data/raw/*.csv
-/data/processed/*.csv
 Product SKU Map.csv
 Product SKU Map_OLD.csv
 Inventory*.csv
@@ -60,3 +59,5 @@ uploads/*.xlsx
 uploads/*.csv
 data/*.db
 *.db
+.env.local
+.env

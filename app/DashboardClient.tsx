@@ -19,7 +19,8 @@ import {
   ZAxis,
   ReferenceLine,
 } from "recharts";
-import { DollarSign, Package, Layers, Filter, X, Calendar } from "lucide-react";
+import { DollarSign, Package, Layers, Filter, X, Calendar, Upload, Settings } from "lucide-react";
+import Link from "next/link";
 import { Transaction } from "./page";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -305,6 +306,142 @@ export default function DashboardClient({ transactions, locations }: DashboardCl
     return Math.round(sum / productPerformanceData.length * 100) / 100;
   }, [productPerformanceData]);
 
+  // Category Efficiency Data (Gross Margin % by Product Type)
+  const categoryEfficiencyData = useMemo(() => {
+    console.log("=== CALCULATING CATEGORY EFFICIENCY ===");
+    const typeData: Record<string, { revenue: number; cost: number; profit: number }> = {};
+
+    filteredTransactions.forEach((t) => {
+      const type = t.Type || "Unknown";
+      if (!typeData[type]) {
+        typeData[type] = { revenue: 0, cost: 0, profit: 0 };
+      }
+      typeData[type].revenue += t.revenue;
+      typeData[type].cost += t.cost * t.quantity;
+      typeData[type].profit += t.profit;
+    });
+
+    const result = Object.entries(typeData)
+      .map(([type, data]) => {
+        const grossMargin = data.revenue > 0 ? (data.profit / data.revenue * 100) : 0;
+        return {
+          type,
+          grossMargin: Math.round(grossMargin * 10) / 10,
+          revenue: Math.round(data.revenue * 100) / 100,
+          profit: Math.round(data.profit * 100) / 100,
+        };
+      })
+      .filter(c => c.revenue >= 100) // Filter out categories with <$100 revenue
+      .sort((a, b) => b.grossMargin - a.grossMargin);
+
+    console.log("Category efficiency data:", result);
+    return result;
+  }, [filteredTransactions]);
+
+  // Location Yield Metrics (Profit per Swipe by Location)
+  const locationYieldData = useMemo(() => {
+    console.log("=== CALCULATING LOCATION YIELD ===");
+    const locationData: Record<string, { profit: number; transactionCount: number }> = {};
+
+    filteredTransactions.forEach((t) => {
+      const loc = t.location;
+      if (!locationData[loc]) {
+        locationData[loc] = { profit: 0, transactionCount: 0 };
+      }
+      locationData[loc].profit += t.profit;
+      locationData[loc].transactionCount += 1;
+    });
+
+    const result = Object.entries(locationData)
+      .map(([location, data]) => {
+        const profitPerSwipe = data.transactionCount > 0 ? data.profit / data.transactionCount : 0;
+        return {
+          location,
+          profitPerSwipe: Math.round(profitPerSwipe * 100) / 100,
+          totalProfit: Math.round(data.profit * 100) / 100,
+          transactionCount: data.transactionCount,
+        };
+      })
+      .sort((a, b) => b.profitPerSwipe - a.profitPerSwipe);
+
+    console.log("Location yield data:", result);
+    return result;
+  }, [filteredTransactions]);
+
+  // COGS Trendline Data (Cost of Goods Sold % over time)
+  const cogsTrendData = useMemo(() => {
+    console.log("=== CALCULATING COGS TREND ===");
+    const monthlyData: Record<string, { revenue: number; cogs: number }> = {};
+
+    filteredTransactions.forEach((t) => {
+      const month = t.date.substring(0, 7); // YYYY-MM
+      if (!monthlyData[month]) {
+        monthlyData[month] = { revenue: 0, cogs: 0 };
+      }
+      monthlyData[month].revenue += t.revenue;
+      monthlyData[month].cogs += t.cost * t.quantity;
+    });
+
+    const result = Object.entries(monthlyData)
+      .map(([month, data]) => {
+        const cogsPercent = data.revenue > 0 ? (data.cogs / data.revenue * 100) : 0;
+        return {
+          month,
+          cogsPercent: Math.round(cogsPercent * 10) / 10,
+          revenue: Math.round(data.revenue * 100) / 100,
+          cogs: Math.round(data.cogs * 100) / 100,
+        };
+      })
+      .sort((a, b) => a.month.localeCompare(b.month));
+
+    console.log("COGS trend data:", result);
+    return result;
+  }, [filteredTransactions]);
+
+  // Ghost Report Data (Unmapped Products)
+  const unmappedStats = useMemo(() => {
+    console.log("=== CALCULATING UNMAPPED STATS ===");
+    const unmapped = filteredTransactions.filter(t =>
+      t.Master_SKU === "UNMAPPED" || t.mapping_tier === "unmapped"
+    );
+
+    if (unmapped.length === 0) {
+      return { totalRevenue: 0, productCount: 0, revenuePercent: 0, topUnmapped: [] };
+    }
+
+    const totalRevenue = unmapped.reduce((sum, t) => sum + t.revenue, 0);
+    const overallRevenue = filteredTransactions.reduce((sum, t) => sum + t.revenue, 0);
+    const revenuePercent = overallRevenue > 0 ? (totalRevenue / overallRevenue * 100) : 0;
+
+    // Aggregate by product name
+    const productData: Record<string, { revenue: number; count: number }> = {};
+    unmapped.forEach((t) => {
+      const name = t.Master_Name || "Unknown";
+      if (!productData[name]) {
+        productData[name] = { revenue: 0, count: 0 };
+      }
+      productData[name].revenue += t.revenue;
+      productData[name].count += 1;
+    });
+
+    const topUnmapped = Object.entries(productData)
+      .map(([name, data]) => ({
+        name,
+        revenue: Math.round(data.revenue * 100) / 100,
+        count: data.count,
+      }))
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 10);
+
+    console.log("Unmapped stats:", { totalRevenue, productCount: Object.keys(productData).length, revenuePercent, topUnmapped });
+    return {
+      totalRevenue: Math.round(totalRevenue * 100) / 100,
+      productCount: Object.keys(productData).length,
+      revenuePercent: Math.round(revenuePercent * 10) / 10,
+      topUnmapped,
+    };
+  }, [filteredTransactions]);
+
   // Location filter handlers
   const toggleLocation = (location: string) => {
     const newSelected = new Set(selectedLocations);
@@ -403,17 +540,39 @@ export default function DashboardClient({ transactions, locations }: DashboardCl
       <main className="p-8">
         {/* Header */}
         <header className="mb-8">
-          <div className="flex items-center gap-4 mb-2">
-            <img
-              src="/logo.svg"
-              alt="Smart Vending ATX Logo"
-              className="h-12 w-auto"
-            />
-            <h1 className="text-4xl font-bold tracking-tight">
-              Dashboard
-            </h1>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4 mb-2">
+              <img
+                src="/logo.svg"
+                alt="Smart Vending ATX Logo"
+                className="h-12 w-auto"
+              />
+              <div>
+                <h1 className="text-4xl font-bold tracking-tight">
+                  Dashboard
+                </h1>
+                <p className="text-gray-400">Real-time analytics dashboard</p>
+              </div>
+            </div>
+
+            {/* Admin Navigation Buttons */}
+            <div className="flex gap-3">
+              <Link
+                href="/admin/upload"
+                className="px-4 py-2 bg-[#09fe94]/10 text-[#09fe94] rounded-lg hover:bg-[#09fe94]/20 transition-colors border border-[#09fe94]/30 flex items-center gap-2"
+              >
+                <Upload className="w-4 h-4" />
+                Upload Data
+              </Link>
+              <Link
+                href="/admin/sku-mappings"
+                className="px-4 py-2 bg-[#09fe94]/10 text-[#09fe94] rounded-lg hover:bg-[#09fe94]/20 transition-colors border border-[#09fe94]/30 flex items-center gap-2"
+              >
+                <Settings className="w-4 h-4" />
+                SKU Mappings
+              </Link>
+            </div>
           </div>
-          <p className="text-gray-400 ml-16">Real-time analytics dashboard</p>
         </header>
 
         {/* Filter Controls */}
@@ -982,6 +1141,269 @@ export default function DashboardClient({ transactions, locations }: DashboardCl
             </div>
           )}
         </div>
+
+        {/* Category Efficiency Chart */}
+        {categoryEfficiencyData.length > 0 && (
+          <div className="bg-[#111] border border-[#222] rounded-2xl p-6 mb-8">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-semibold text-white">
+                  Category Efficiency
+                </h2>
+                <p className="text-gray-400 text-sm mt-1">
+                  Gross margin % by product type
+                </p>
+              </div>
+            </div>
+
+            <ResponsiveContainer width="100%" height={400}>
+              <BarChart
+                layout="vertical"
+                data={categoryEfficiencyData}
+                margin={{ top: 5, right: 30, left: 20, bottom: 20 }}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="#222"
+                  horizontal={false}
+                />
+                <XAxis
+                  type="number"
+                  stroke="#666"
+                  tick={{ fill: "#888", fontSize: 12 }}
+                  axisLine={{ stroke: "#333" }}
+                  tickFormatter={(value) => `${value}%`}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="type"
+                  stroke="#666"
+                  interval={0}
+                  width={150}
+                  axisLine={{ stroke: "#333" }}
+                  tick={{ fill: "#E5E7EB", fontSize: 11, textAnchor: "end" }}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#1a1a1a",
+                    border: "1px solid #333",
+                    borderRadius: "12px",
+                    boxShadow: "0 4px 20px rgba(118, 255, 3, 0.1)",
+                  }}
+                  labelStyle={{ color: "#fff", fontWeight: 600 }}
+                  formatter={(value: number | undefined) => value !== undefined ? [`${value}%`, "Gross Margin"] : ["-", "Gross Margin"]}
+                />
+                <Bar dataKey="grossMargin" radius={[0, 4, 4, 0]}>
+                  {categoryEfficiencyData.map((entry, index) => {
+                    let fill = "#dc2626"; // < 45%
+                    if (entry.grossMargin > 60) {
+                      fill = "#09fe94"; // > 60%
+                    } else if (entry.grossMargin >= 45) {
+                      fill = "#27a162"; // 45-60%
+                    }
+                    return <Cell key={`cell-${index}`} fill={fill} />;
+                  })}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {/* Location Yield Metrics */}
+        {locationYieldData.length > 0 && (
+          <div className="bg-[#111] border border-[#222] rounded-2xl p-6 mb-8">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-semibold text-white">
+                  Location Yield
+                </h2>
+                <p className="text-gray-400 text-sm mt-1">
+                  Profit per swipe by location
+                </p>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-[#333]">
+                    <th className="text-left py-3 px-4 text-gray-400 font-medium text-sm">Location</th>
+                    <th className="text-right py-3 px-4 text-gray-400 font-medium text-sm">Profit/Swipe</th>
+                    <th className="text-right py-3 px-4 text-gray-400 font-medium text-sm">Total Profit</th>
+                    <th className="text-right py-3 px-4 text-gray-400 font-medium text-sm">Transactions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {locationYieldData.map((location, index) => (
+                    <tr
+                      key={index}
+                      className="border-b border-[#222] hover:bg-[#1a1a1a] transition-colors"
+                    >
+                      <td className="py-3 px-4 text-white">{location.location}</td>
+                      <td className="py-3 px-4 text-right font-semibold text-[#09fe94]">
+                        ${location.profitPerSwipe.toFixed(2)}
+                      </td>
+                      <td className="py-3 px-4 text-right text-gray-300">
+                        ${location.totalProfit.toLocaleString()}
+                      </td>
+                      <td className="py-3 px-4 text-right text-gray-400">
+                        {location.transactionCount.toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* COGS Trendline */}
+        {cogsTrendData.length > 1 && (
+          <div className="bg-[#111] border border-[#222] rounded-2xl p-6 mb-8">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-semibold text-white">
+                  COGS Trendline
+                </h2>
+                <p className="text-gray-400 text-sm mt-1">
+                  Cost of goods sold % over time
+                </p>
+              </div>
+            </div>
+
+            <ResponsiveContainer width="100%" height={300}>
+              <ComposedChart
+                data={cogsTrendData}
+                margin={{ top: 5, right: 30, left: 20, bottom: 20 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#222" />
+                <XAxis
+                  dataKey="month"
+                  stroke="#666"
+                  tick={{ fill: "#888", fontSize: 12 }}
+                  axisLine={{ stroke: "#333" }}
+                />
+                <YAxis
+                  stroke="#666"
+                  tick={{ fill: "#888", fontSize: 12 }}
+                  axisLine={{ stroke: "#333" }}
+                  tickFormatter={(value) => `${value}%`}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#1a1a1a",
+                    border: "1px solid #333",
+                    borderRadius: "12px",
+                    boxShadow: "0 4px 20px rgba(118, 255, 3, 0.1)",
+                  }}
+                  labelStyle={{ color: "#fff", fontWeight: 600 }}
+                  formatter={(value: number | undefined, name: string | undefined) => {
+                    if (value === undefined) return ["-", name || ""];
+                    if (name === "cogsPercent") return [`${value}%`, "COGS %"];
+                    return [value, name];
+                  }}
+                />
+                <Legend />
+                <ReferenceLine
+                  y={40}
+                  stroke="#666"
+                  strokeDasharray="5 5"
+                  label={{ value: "Target COGS (40%)", position: "right", fill: "#888", fontSize: 11 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="cogsPercent"
+                  stroke="#09fe94"
+                  strokeWidth={2}
+                  dot={{ fill: "#09fe94", r: 4 }}
+                  name="COGS %"
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {/* Ghost Report - Unmapped Products */}
+        {unmappedStats.totalRevenue > 0 && (
+          <div className="bg-[#1a1a1a] border-2 border-yellow-500/30 rounded-2xl p-6 mb-8">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-full bg-yellow-500/10 flex items-center justify-center">
+                <span className="text-yellow-400 text-2xl">⚠️</span>
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-yellow-400">
+                  Ghost Report - Unmapped Products
+                </h2>
+                <p className="text-gray-400 text-sm mt-1">
+                  Products without SKU mapping
+                </p>
+              </div>
+            </div>
+
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div className="bg-[#111] border border-yellow-500/20 rounded-xl p-4">
+                <p className="text-gray-400 text-sm mb-1">Unmapped Revenue</p>
+                <p className="text-2xl font-bold text-yellow-400">
+                  ${unmappedStats.totalRevenue.toLocaleString()}
+                </p>
+              </div>
+              <div className="bg-[#111] border border-yellow-500/20 rounded-xl p-4">
+                <p className="text-gray-400 text-sm mb-1">Unique Products</p>
+                <p className="text-2xl font-bold text-yellow-400">
+                  {unmappedStats.productCount}
+                </p>
+              </div>
+              <div className="bg-[#111] border border-yellow-500/20 rounded-xl p-4">
+                <p className="text-gray-400 text-sm mb-1">% of Total Revenue</p>
+                <p className="text-2xl font-bold text-yellow-400">
+                  {unmappedStats.revenuePercent}%
+                </p>
+              </div>
+            </div>
+
+            {/* Top Unmapped Products Table */}
+            {unmappedStats.topUnmapped.length > 0 && (
+              <div>
+                <h3 className="text-lg font-semibold text-white mb-3">
+                  Top 10 Unmapped Products
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-yellow-500/20">
+                        <th className="text-left py-3 px-4 text-gray-400 font-medium text-sm">Product Name</th>
+                        <th className="text-right py-3 px-4 text-gray-400 font-medium text-sm">Revenue</th>
+                        <th className="text-right py-3 px-4 text-gray-400 font-medium text-sm">Transactions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {unmappedStats.topUnmapped.map((product, index) => (
+                        <tr
+                          key={index}
+                          className="border-b border-yellow-500/10 hover:bg-yellow-500/5 transition-colors"
+                        >
+                          <td className="py-3 px-4 text-white">{product.name}</td>
+                          <td className="py-3 px-4 text-right font-semibold text-yellow-400">
+                            ${product.revenue.toLocaleString()}
+                          </td>
+                          <td className="py-3 px-4 text-right text-gray-400">
+                            {product.count}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mt-4 text-center">
+                  <p className="text-gray-400 text-sm">
+                    Need to map these products? Contact admin for manual mapping.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Footer */}
         <footer className="mt-10 text-center text-gray-500 text-sm">
