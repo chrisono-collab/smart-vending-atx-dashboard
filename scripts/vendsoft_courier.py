@@ -85,10 +85,11 @@ def fetch_transaction_log():
             # Log all links on page for debugging
             links = page.query_selector_all('a')
             log(f"Found {len(links)} links on page")
-            for link in links[:20]:  # First 20 links
-                text = link.inner_text()
-                if text and ('transaction' in text.lower() or 'report' in text.lower()):
-                    log(f"  Link: '{text}'")
+            log("All link texts:")
+            for i, link in enumerate(links[:30]):  # First 30 links
+                text = link.inner_text().strip()
+                if text:  # Only log non-empty text
+                    log(f"  [{i}] '{text}'")
 
             # Scroll down to find Transaction Log (it's further down the list)
             log("Scrolling to find Transaction Log...")
