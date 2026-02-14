@@ -55,7 +55,7 @@ def fetch_transaction_log():
 
             # Fill in login credentials
             log("Entering credentials...")
-            page.fill('input[name="username"]', VENDSOFT_USER)
+            page.fill('input[name="email"]', VENDSOFT_USER)
             page.fill('input[name="password"]', VENDSOFT_PASS)
 
             # Click login button
