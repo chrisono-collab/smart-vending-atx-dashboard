@@ -76,8 +76,22 @@ def fetch_transaction_log():
             page.click('text=Reports')
             time.sleep(2)
 
-            # Scroll and click on Transaction Log
-            page.click('text=Transaction Log')
+            # Scroll down to find Transaction Log (it's further down the list)
+            log("Scrolling to find Transaction Log...")
+            page.mouse.wheel(0, 500)  # Scroll down 500px
+            time.sleep(1)
+
+            # Try multiple variations of the Transaction Log link
+            if page.query_selector('text="Transaction Log"'):
+                page.click('text="Transaction Log"')
+            elif page.query_selector('text="Transaction Logs"'):
+                page.click('text="Transaction Logs"')
+            elif page.query_selector('a:has-text("Transaction Log")'):
+                page.click('a:has-text("Transaction Log")')
+            else:
+                log("ERROR: Could not find Transaction Log link")
+                return None
+
             page.wait_for_load_state("networkidle")
             time.sleep(3)
 
