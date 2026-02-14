@@ -12,16 +12,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Setup Python environment
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
+      # Install necessary tools for the Courier
       - name: Install dependencies
         run: |
           pip install playwright requests python-dotenv
           playwright install chromium
 
+      # Execute the courier script using GitHub Secrets
       - name: Run Vendsoft Courier
         env:
           VENDSOFT_USER: ${{ secrets.VENDSOFT_USER }}
@@ -29,6 +32,7 @@ jobs:
           UPLOAD_ENDPOINT: https://smart-vending-atx-dashboard.vercel.app/api/upload
         run: python scripts/vendsoft_courier.py
 
+      # Logging on failure
       - name: Notify on failure
         if: failure()
         run: echo "Vendsoft sync failed"
