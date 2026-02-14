@@ -1,9 +1,9 @@
 name: Daily Vendsoft Sync
 
 on:
-  schedule:
-    - cron: '0 4 * * *'
-  workflow_dispatch:
+  # schedule:
+  #   - cron: '0 4 * * *'  # Disabled until automation is working
+  workflow_dispatch:  # Manual trigger only for now
 
 jobs:
   sync:
