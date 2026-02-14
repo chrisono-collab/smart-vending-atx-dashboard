@@ -398,49 +398,6 @@ export default function DashboardClient({ transactions, locations }: DashboardCl
     return result;
   }, [filteredTransactions]);
 
-  // Ghost Report Data (Unmapped Products)
-  const unmappedStats = useMemo(() => {
-    console.log("=== CALCULATING UNMAPPED STATS ===");
-    const unmapped = filteredTransactions.filter(t =>
-      t.Master_SKU === "UNMAPPED" || t.mapping_tier === "unmapped"
-    );
-
-    if (unmapped.length === 0) {
-      return { totalRevenue: 0, productCount: 0, revenuePercent: 0, topUnmapped: [] };
-    }
-
-    const totalRevenue = unmapped.reduce((sum, t) => sum + t.revenue, 0);
-    const overallRevenue = filteredTransactions.reduce((sum, t) => sum + t.revenue, 0);
-    const revenuePercent = overallRevenue > 0 ? (totalRevenue / overallRevenue * 100) : 0;
-
-    // Aggregate by product name
-    const productData: Record<string, { revenue: number; count: number }> = {};
-    unmapped.forEach((t) => {
-      const name = t.Master_Name || "Unknown";
-      if (!productData[name]) {
-        productData[name] = { revenue: 0, count: 0 };
-      }
-      productData[name].revenue += t.revenue;
-      productData[name].count += 1;
-    });
-
-    const topUnmapped = Object.entries(productData)
-      .map(([name, data]) => ({
-        name,
-        revenue: Math.round(data.revenue * 100) / 100,
-        count: data.count,
-      }))
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 10);
-
-    console.log("Unmapped stats:", { totalRevenue, productCount: Object.keys(productData).length, revenuePercent, topUnmapped });
-    return {
-      totalRevenue: Math.round(totalRevenue * 100) / 100,
-      productCount: Object.keys(productData).length,
-      revenuePercent: Math.round(revenuePercent * 10) / 10,
-      topUnmapped,
-    };
-  }, [filteredTransactions]);
 
   // Location filter handlers
   const toggleLocation = (location: string) => {
@@ -1323,87 +1280,6 @@ export default function DashboardClient({ transactions, locations }: DashboardCl
           </div>
         )}
 
-        {/* Ghost Report - Unmapped Products */}
-        {unmappedStats.totalRevenue > 0 && (
-          <div className="bg-[#1a1a1a] border-2 border-yellow-500/30 rounded-2xl p-6 mb-8">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 rounded-full bg-yellow-500/10 flex items-center justify-center">
-                <span className="text-yellow-400 text-2xl">⚠️</span>
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold text-yellow-400">
-                  Ghost Report - Unmapped Products
-                </h2>
-                <p className="text-gray-400 text-sm mt-1">
-                  Products without SKU mapping
-                </p>
-              </div>
-            </div>
-
-            {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              <div className="bg-[#111] border border-yellow-500/20 rounded-xl p-4">
-                <p className="text-gray-400 text-sm mb-1">Unmapped Revenue</p>
-                <p className="text-2xl font-bold text-yellow-400">
-                  ${unmappedStats.totalRevenue.toLocaleString()}
-                </p>
-              </div>
-              <div className="bg-[#111] border border-yellow-500/20 rounded-xl p-4">
-                <p className="text-gray-400 text-sm mb-1">Unique Products</p>
-                <p className="text-2xl font-bold text-yellow-400">
-                  {unmappedStats.productCount}
-                </p>
-              </div>
-              <div className="bg-[#111] border border-yellow-500/20 rounded-xl p-4">
-                <p className="text-gray-400 text-sm mb-1">% of Total Revenue</p>
-                <p className="text-2xl font-bold text-yellow-400">
-                  {unmappedStats.revenuePercent}%
-                </p>
-              </div>
-            </div>
-
-            {/* Top Unmapped Products Table */}
-            {unmappedStats.topUnmapped.length > 0 && (
-              <div>
-                <h3 className="text-lg font-semibold text-white mb-3">
-                  Top 10 Unmapped Products
-                </h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-yellow-500/20">
-                        <th className="text-left py-3 px-4 text-gray-400 font-medium text-sm">Product Name</th>
-                        <th className="text-right py-3 px-4 text-gray-400 font-medium text-sm">Revenue</th>
-                        <th className="text-right py-3 px-4 text-gray-400 font-medium text-sm">Transactions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {unmappedStats.topUnmapped.map((product, index) => (
-                        <tr
-                          key={index}
-                          className="border-b border-yellow-500/10 hover:bg-yellow-500/5 transition-colors"
-                        >
-                          <td className="py-3 px-4 text-white">{product.name}</td>
-                          <td className="py-3 px-4 text-right font-semibold text-yellow-400">
-                            ${product.revenue.toLocaleString()}
-                          </td>
-                          <td className="py-3 px-4 text-right text-gray-400">
-                            {product.count}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="mt-4 text-center">
-                  <p className="text-gray-400 text-sm">
-                    Need to map these products? Contact admin for manual mapping.
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Footer */}
         <footer className="mt-10 text-center text-gray-500 text-sm">
