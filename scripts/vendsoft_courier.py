@@ -72,14 +72,33 @@ def fetch_transaction_log():
             # Navigate to the actual app (not marketing site)
             log("Navigating to Vendsoft app...")
             page.goto("https://secure.vendsoft.com/next", timeout=60000)
-            page.wait_for_load_state("networkidle")
-            time.sleep(3)
+            page.wait_for_load_state("domcontentloaded")
+            time.sleep(5)  # Give React time to render
 
             # Navigate to Reports > Transaction Log
             log("Navigating to Transaction Log report...")
 
-            # Click on Reports in left pane
-            page.click('text=Reports')
+            # Log all visible text on the page to find Reports
+            log("Looking for Reports menu...")
+            all_text_elements = page.query_selector_all('a, button, span, div')
+            log(f"Found {len(all_text_elements)} elements")
+            log("Elements containing 'Report':")
+            for elem in all_text_elements[:50]:
+                text = elem.inner_text().strip()
+                if text and 'report' in text.lower():
+                    log(f"  - '{text}'")
+
+            # Try to find and click Reports
+            if page.query_selector('text=Reports'):
+                page.click('text=Reports', timeout=10000)
+            elif page.query_selector('[aria-label*="Reports"]'):
+                page.click('[aria-label*="Reports"]', timeout=10000)
+            elif page.query_selector('button:has-text("Reports")'):
+                page.click('button:has-text("Reports")', timeout=10000)
+            else:
+                log("ERROR: Could not find Reports menu")
+                return None
+
             time.sleep(3)
 
             # Take screenshot to debug Reports menu
