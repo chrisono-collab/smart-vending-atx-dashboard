@@ -61,3 +61,6 @@ data/*.db
 *.db
 .env.local
 .env
+
+# automation downloads
+scripts/downloads/
