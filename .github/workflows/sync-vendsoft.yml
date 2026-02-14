@@ -1,10 +1,9 @@
-name: Daily Vendsoft Sync
-
-  on:
-    schedule:
-      # Run daily at 4:00 AM UTC (adjust timezone as needed)
-      - cron: '0 4 * * *'
-    workflow_dispatch:  # Allow manual trigger
+ name: Daily Vendsoft Sync                                                                                                 
+                                                                                                                            
+  on:                                                                                                                       
+    schedule:                                                                                                               
+      - cron: '0 4 * * *'                                                                                                   
+    workflow_dispatch:                                                                                                      
 
   jobs:
     sync:
