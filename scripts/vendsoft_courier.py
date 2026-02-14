@@ -50,58 +50,55 @@ def fetch_transaction_log():
             log(f"Navigating to {VENDSOFT_URL}")
             page.goto(VENDSOFT_URL, timeout=60000)
 
-            # Wait for login page to load (React/MUI app needs time)
+            # Wait for page to load
             page.wait_for_load_state("domcontentloaded")
-            time.sleep(5)  # Extra time for React to render
+            time.sleep(3)
 
-            # Take screenshot for debugging
-            screenshots_dir = Path(__file__).parent / "screenshots"
-            screenshots_dir.mkdir(exist_ok=True)
-            page.screenshot(path=str(screenshots_dir / "login_page.png"))
-            log(f"Screenshot saved to {screenshots_dir / 'login_page.png'}")
-
-            # Wait for email field to be visible with longer timeout
-            page.wait_for_selector('input[id="email"]', state="visible", timeout=30000)
-
-            # Fill in login credentials
-            log("Entering credentials...")
-            page.fill('input[id="email"]', VENDSOFT_USER)
-            page.fill('input[id="password"]', VENDSOFT_PASS)
-
-            # Click login button
-            log("Clicking login button...")
-            page.click('button[type="submit"]')
-
-            # Wait for dashboard to load
-            page.wait_for_load_state("networkidle")
-            time.sleep(2)
-
-            # Check if login was successful
-            if "login" in page.url.lower():
-                log("ERROR: Login failed - still on login page")
+            # Check if we're already logged in or need to login
+            if page.query_selector('input[id="email"]'):
+                log("Login page detected - entering credentials...")
+                page.fill('input[id="email"]', VENDSOFT_USER)
+                page.fill('input[id="password"]', VENDSOFT_PASS)
+                page.click('button[type="submit"]')
+                page.wait_for_load_state("networkidle")
+                time.sleep(2)
+                log("Login successful!")
+            elif "login" not in page.url.lower():
+                log("Already logged in - proceeding to reports...")
+            else:
+                log("ERROR: Login page detected but email field not found")
                 return None
-
-            log("Login successful!")
 
             # Navigate to Reports > Transaction Log
             log("Navigating to Transaction Log report...")
 
-            # Click on Reports menu
+            # Click on Reports in left pane
             page.click('text=Reports')
-            time.sleep(1)
+            time.sleep(2)
 
-            # Click on Transaction Log
+            # Scroll and click on Transaction Log
             page.click('text=Transaction Log')
             page.wait_for_load_state("networkidle")
-            time.sleep(2)
+            time.sleep(3)
 
             log("Setting date range to Year to Date...")
 
-            # Select "Year to Date" date range
-            # Note: You may need to adjust these selectors based on actual Vendsoft UI
-            page.click('select[name="dateRange"]')
-            page.select_option('select[name="dateRange"]', 'ytd')
-            time.sleep(1)
+            # Look for date range selector - try multiple possible selectors
+            # Could be a dropdown, button group, or custom date picker
+            try:
+                # Try clicking a "Year to Date" button or option
+                if page.query_selector('text="Year to date"'):
+                    page.click('text="Year to date"')
+                elif page.query_selector('text="Year to Date"'):
+                    page.click('text="Year to Date"')
+                elif page.query_selector('button:has-text("YTD")'):
+                    page.click('button:has-text("YTD")')
+                else:
+                    log("Could not find Year to Date selector - using default range")
+
+                time.sleep(2)
+            except Exception as e:
+                log(f"Date range selection warning: {str(e)}")
 
             # Setup download handler
             downloads_dir = Path(__file__).parent / "downloads"
@@ -110,10 +107,17 @@ def fetch_transaction_log():
             log("Triggering Excel export...")
 
             # Start waiting for download before clicking
-            with page.expect_download() as download_info:
-                # Click export/download button
-                page.click('button:has-text("Export")')
-                # or page.click('text=Download Excel')
+            with page.expect_download(timeout=60000) as download_info:
+                # Try multiple export button selectors
+                if page.query_selector('button:has-text("Export Excel")'):
+                    page.click('button:has-text("Export Excel")')
+                elif page.query_selector('button:has-text("Export")'):
+                    page.click('button:has-text("Export")')
+                elif page.query_selector('text="Download"'):
+                    page.click('text="Download"')
+                else:
+                    log("ERROR: Could not find export button")
+                    return None
 
             download = download_info.value
 
