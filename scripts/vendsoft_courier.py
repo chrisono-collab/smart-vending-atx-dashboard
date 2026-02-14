@@ -64,10 +64,16 @@ def fetch_transaction_log():
                 time.sleep(2)
                 log("Login successful!")
             elif "login" not in page.url.lower():
-                log("Already logged in - proceeding to reports...")
+                log("Already logged in - proceeding to app...")
             else:
                 log("ERROR: Login page detected but email field not found")
                 return None
+
+            # Navigate to the actual app (not marketing site)
+            log("Navigating to Vendsoft app...")
+            page.goto("https://secure.vendsoft.com/next", timeout=60000)
+            page.wait_for_load_state("networkidle")
+            time.sleep(3)
 
             # Navigate to Reports > Transaction Log
             log("Navigating to Transaction Log report...")
