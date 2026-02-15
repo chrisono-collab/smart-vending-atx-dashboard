@@ -159,20 +159,9 @@ def process_file(filepath):
     df['Location'] = df.apply(extract_location, axis=1)
     print(f"Fixed NULL locations", file=sys.stderr)
 
-    # Delete ALL existing transactions first
-    print("Deleting all existing transactions...", file=sys.stderr)
-    try:
-        delete_response = requests.delete(
-            f"{SUPABASE_URL}/rest/v1/transactions?id=neq.0",
-            headers=headers,
-            timeout=60
-        )
-        if delete_response.status_code in [200, 204]:
-            print("Successfully deleted all existing transactions", file=sys.stderr)
-        else:
-            print(f"Warning: Delete returned status {delete_response.status_code}", file=sys.stderr)
-    except Exception as e:
-        print(f"Warning: Could not delete existing records: {e}", file=sys.stderr)
+    # NOTE: Skipping delete to avoid serverless timeout
+    # The unique dedup_key constraint will prevent duplicates
+    print("Skipping delete to avoid timeout - relying on dedup_key uniqueness", file=sys.stderr)
 
     raw_count = len(df)
     print(f"Raw transactions: {raw_count}", file=sys.stderr)
@@ -246,8 +235,8 @@ def process_file(filepath):
         }
         records.append(record)
 
-    # Insert into Supabase in batches of 100
-    batch_size = 100
+    # Insert into Supabase in batches of 200 for speed
+    batch_size = 200
     inserted_count = 0
     failed_count = 0
 
@@ -263,12 +252,12 @@ def process_file(filepath):
                 f"{SUPABASE_URL}/rest/v1/transactions",
                 headers=headers,
                 data=json.dumps(batch),
-                timeout=30
+                timeout=10  # Reduced timeout for serverless
             )
 
             if response.status_code in [200, 201]:
                 inserted_count += len(batch)
-                if batch_num % 10 == 0 or batch_num == total_batches:
+                if batch_num % 20 == 0 or batch_num == total_batches:
                     print(f"Batch {batch_num}/{total_batches}: {inserted_count} inserted", file=sys.stderr)
             else:
                 failed_count += len(batch)

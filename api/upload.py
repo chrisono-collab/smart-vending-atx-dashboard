@@ -81,7 +81,9 @@ class handler(BaseHTTPRequestHandler):
             print(f"File saved: {filepath}", file=sys.stderr)
 
             # Process the file
+            print("Starting file processing...", file=sys.stderr)
             result = process_file(filepath)
+            print("File processing complete", file=sys.stderr)
 
             # Send response
             response_data = {
@@ -90,18 +92,31 @@ class handler(BaseHTTPRequestHandler):
                 **result
             }
 
+            print(f"Sending response: {json.dumps(response_data)[:200]}", file=sys.stderr)
+
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
-            self.wfile.write(json.dumps(response_data).encode())
+
+            response_json = json.dumps(response_data)
+            self.wfile.write(response_json.encode('utf-8'))
 
         except Exception as e:
             print(f"Error: {str(e)}", file=sys.stderr)
             import traceback
-            traceback.print_exc()
+            traceback.print_exc(file=sys.stderr)
 
-            self.send_response(500)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            error_response = {'error': str(e)}
-            self.wfile.write(json.dumps(error_response).encode())
+            try:
+                self.send_response(500)
+                self.send_header('Content-type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                error_response = {
+                    'success': False,
+                    'error': str(e),
+                    'type': type(e).__name__
+                }
+                self.wfile.write(json.dumps(error_response).encode())
+            except:
+                pass  # Response already sent
