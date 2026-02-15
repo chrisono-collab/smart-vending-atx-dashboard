@@ -295,7 +295,7 @@ def process_file(filepath):
         data=json.dumps([upload_record])
     )
 
-    # Return result as JSON
+    # Return result
     result = {
         'totalTransactions': len(df),
         'duplicatesRemoved': 0,
@@ -307,7 +307,6 @@ def process_file(filepath):
         'totalProfit': float(df['profit'].sum())
     }
 
-    print(json.dumps(result))
     return result
 
 if __name__ == '__main__':
@@ -316,4 +315,5 @@ if __name__ == '__main__':
         sys.exit(1)
 
     filepath = sys.argv[1]
-    process_file(filepath)
+    result = process_file(filepath)
+    print(json.dumps(result))
