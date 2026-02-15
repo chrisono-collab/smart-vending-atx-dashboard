@@ -27,7 +27,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Create uploads directory
-    const uploadsDir = join(process.cwd(), 'uploads');
+    // Use /tmp for serverless environments (Vercel), or local uploads for dev
+    const uploadsDir = process.env.VERCEL
+      ? '/tmp/uploads'
+      : join(process.cwd(), 'uploads');
     await mkdir(uploadsDir, { recursive: true });
 
     // Save file

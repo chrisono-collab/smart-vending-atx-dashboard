@@ -13,34 +13,52 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get('endDate');
     const locations = searchParams.get('locations')?.split(',').filter(Boolean);
 
-    // Build query
-    let query = supabase
-      .from('transactions')
-      .select('*')
-      .order('date', { ascending: true });
+    // Fetch ALL transactions using pagination
+    let allData: any[] = [];
+    let from = 0;
+    const pageSize = 1000;
+    let hasMore = true;
 
-    // Apply date filters if provided
-    if (startDate) {
-      query = query.gte('date', startDate);
-    }
-    if (endDate) {
-      query = query.lte('date', endDate);
+    while (hasMore) {
+      let query = supabase
+        .from('transactions')
+        .select('*')
+        .order('date', { ascending: true })
+        .range(from, from + pageSize - 1);
+
+      // Apply date filters if provided
+      if (startDate) {
+        query = query.gte('date', startDate);
+      }
+      if (endDate) {
+        query = query.lte('date', endDate);
+      }
+
+      // Apply location filter if provided
+      if (locations && locations.length > 0) {
+        query = query.in('location', locations);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('Supabase error:', error);
+        return NextResponse.json(
+          { error: 'Failed to fetch transactions' },
+          { status: 500 }
+        );
+      }
+
+      if (data && data.length > 0) {
+        allData = allData.concat(data);
+        from += pageSize;
+        hasMore = data.length === pageSize;
+      } else {
+        hasMore = false;
+      }
     }
 
-    // Apply location filter if provided
-    if (locations && locations.length > 0) {
-      query = query.in('location', locations);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error('Supabase error:', error);
-      return NextResponse.json(
-        { error: 'Failed to fetch transactions' },
-        { status: 500 }
-      );
-    }
+    const data = allData;
 
     // Transform data to match dashboard interface
     const transactions = data.map((row: any) => ({

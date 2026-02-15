@@ -42,7 +42,7 @@ export default function DashboardClient({ transactions, locations }: DashboardCl
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedLocations, setSelectedLocations] = useState<Set<string>>(new Set(locations));
-  const [datePreset, setDatePreset] = useState<DatePreset>("lastMonth"); // Changed from "thisWeek" to "lastMonth" to match January data
+  const [datePreset, setDatePreset] = useState<DatePreset>("thisMonth"); // Show current month by default
   const [customStartDate, setCustomStartDate] = useState("");
   const [customEndDate, setCustomEndDate] = useState("");
 

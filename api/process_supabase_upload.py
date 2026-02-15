@@ -42,6 +42,7 @@ def fetch_mappings():
 
 def create_dedup_key(row, index):
     """Create deduplication key with row index for uniqueness"""
+    import re
     timestamp = pd.to_datetime(row.get('Timestamp'), errors='coerce')
     ts_str = timestamp.strftime('%Y-%m-%dT%H:%M:%S') if pd.notna(timestamp) else 'unknown'
 
@@ -56,6 +57,7 @@ def create_dedup_key(row, index):
 
 def clean_location(location, machine, location_map):
     """Clean location name"""
+    import re
     location_str = str(location).strip()
     machine_str = str(machine).strip()
 
@@ -212,7 +214,8 @@ def process_file(filepath):
 
     # Prepare records for insertion
     records = []
-    for _, row in df.iterrows():
+    for _, row in df.iterrows()
+
         # Helper function to safely convert to float, replacing NaN with 0
         def safe_float(val):
             return 0.0 if pd.isna(val) else float(val)

@@ -1,6 +1,9 @@
 import DashboardClient from "./DashboardClient";
 import { createClient } from "@supabase/supabase-js";
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export interface Transaction {
   date: string;
   location: string;
@@ -22,18 +25,37 @@ async function fetchTransactions(): Promise<Transaction[]> {
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { data, error } = await supabase
-      .from('transactions')
-      .select('*')
-      .order('date', { ascending: true });
+    // Fetch ALL transactions using pagination
+    let allData: any[] = [];
+    let from = 0;
+    const pageSize = 1000;
+    let hasMore = true;
 
-    if (error) {
-      console.error('Error fetching transactions:', error);
-      return [];
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .order('date', { ascending: true })
+        .range(from, from + pageSize - 1);
+
+      if (error) {
+        console.error('Error fetching transactions:', error);
+        break;
+      }
+
+      if (data && data.length > 0) {
+        allData = allData.concat(data);
+        from += pageSize;
+        hasMore = data.length === pageSize; // Continue if we got a full page
+      } else {
+        hasMore = false;
+      }
     }
 
+    console.log(`Fetched ${allData.length} total transactions`);
+
     // Transform Supabase data to match Transaction interface
-    return data.map((row: any) => ({
+    return allData.map((row: any) => ({
       date: row.date,
       location: row.location,
       Master_SKU: row.master_sku,
