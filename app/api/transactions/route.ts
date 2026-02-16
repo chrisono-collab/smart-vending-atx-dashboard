@@ -23,7 +23,8 @@ export async function GET(request: NextRequest) {
       let query = supabase
         .from('transactions')
         .select('*')
-        .order('date', { ascending: true })
+        .order('timestamp', { ascending: true })
+        .order('id', { ascending: true })  // Tie-breaker prevents pagination ghosting
         .range(from, from + pageSize - 1);
 
       // Apply date filters if provided

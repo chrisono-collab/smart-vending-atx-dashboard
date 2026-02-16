@@ -37,6 +37,7 @@ async function fetchTransactions(): Promise<Transaction[]> {
         .from('transactions')
         .select('*')
         .order('timestamp', { ascending: true })
+        .order('id', { ascending: true })  // Tie-breaker prevents pagination ghosting
         .range(from, from + pageSize - 1);
 
       if (error) {
