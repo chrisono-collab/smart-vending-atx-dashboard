@@ -36,7 +36,7 @@ async function fetchTransactions(): Promise<Transaction[]> {
       const { data, error } = await supabase
         .from('transactions')
         .select('*')
-        .order('date', { ascending: true })
+        .order('timestamp', { ascending: true })
         .range(from, from + pageSize - 1);
 
       if (error) {

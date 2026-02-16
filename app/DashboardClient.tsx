@@ -46,45 +46,49 @@ export default function DashboardClient({ transactions, locations }: DashboardCl
   const [customStartDate, setCustomStartDate] = useState("");
   const [customEndDate, setCustomEndDate] = useState("");
 
-  // Calculate date range based on preset
-  const getDateRange = (): { start: Date; end: Date } => {
+  // Calculate date range based on preset - returns ISO date strings to avoid timezone issues
+  const getDateRange = (): { start: string; end: string } => {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
+    const formatDate = (date: Date): string => {
+      return date.toISOString().split('T')[0]; // Returns YYYY-MM-DD
+    };
+
     switch (datePreset) {
       case "today":
-        return { start: today, end: today };
+        return { start: formatDate(today), end: formatDate(today) };
       case "yesterday":
         const yesterday = new Date(today);
         yesterday.setDate(yesterday.getDate() - 1);
-        return { start: yesterday, end: yesterday };
+        return { start: formatDate(yesterday), end: formatDate(yesterday) };
       case "thisWeek":
         const thisWeekStart = new Date(today);
         thisWeekStart.setDate(today.getDate() - today.getDay());
-        return { start: thisWeekStart, end: today };
+        return { start: formatDate(thisWeekStart), end: formatDate(today) };
       case "lastWeek":
         const lastWeekEnd = new Date(today);
         lastWeekEnd.setDate(today.getDate() - today.getDay() - 1);
         const lastWeekStart = new Date(lastWeekEnd);
         lastWeekStart.setDate(lastWeekEnd.getDate() - 6);
-        return { start: lastWeekStart, end: lastWeekEnd };
+        return { start: formatDate(lastWeekStart), end: formatDate(lastWeekEnd) };
       case "thisMonth":
         const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-        return { start: thisMonthStart, end: today };
+        return { start: formatDate(thisMonthStart), end: formatDate(today) };
       case "lastMonth":
         const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
         const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
-        return { start: lastMonthStart, end: lastMonthEnd };
+        return { start: formatDate(lastMonthStart), end: formatDate(lastMonthEnd) };
       case "custom":
         if (customStartDate && customEndDate) {
           return {
-            start: new Date(customStartDate),
-            end: new Date(customEndDate),
+            start: customStartDate,
+            end: customEndDate,
           };
         }
-        return { start: today, end: today };
+        return { start: formatDate(today), end: formatDate(today) };
       default:
-        return { start: today, end: today };
+        return { start: formatDate(today), end: formatDate(today) };
     }
   };
 
@@ -97,8 +101,8 @@ export default function DashboardClient({ transactions, locations }: DashboardCl
     console.log("Selected locations count:", selectedLocations.size);
 
     const filtered = transactions.filter((t) => {
-      const txDate = new Date(t.date);
-      const inDateRange = txDate >= dateRange.start && txDate <= dateRange.end;
+      // Use string comparison to avoid timezone issues - dates are in YYYY-MM-DD format
+      const inDateRange = t.date >= dateRange.start && t.date <= dateRange.end;
       const inSelectedLocations = selectedLocations.has(t.location);
       return inDateRange && inSelectedLocations;
     });
