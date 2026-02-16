@@ -235,54 +235,32 @@ def process_file(filepath):
         }
         records.append(record)
 
-    # Insert into Supabase in batches of 200 for speed
-    batch_size = 200
+    # Insert into Supabase with maximum batch size for speed
+    batch_size = 500  # Max batch size for fastest upload
     inserted_count = 0
     failed_count = 0
 
-    print(f"Inserting {len(records)} records in batches of {batch_size}...", file=sys.stderr)
+    print(f"Fast uploading {len(records)} records...", file=sys.stderr)
 
     for i in range(0, len(records), batch_size):
         batch = records[i:i+batch_size]
-        batch_num = i//batch_size + 1
-        total_batches = (len(records) + batch_size - 1)//batch_size
 
         try:
             response = requests.post(
                 f"{SUPABASE_URL}/rest/v1/transactions",
                 headers=headers,
                 data=json.dumps(batch),
-                timeout=10  # Reduced timeout for serverless
+                timeout=5  # Fast timeout
             )
 
             if response.status_code in [200, 201]:
                 inserted_count += len(batch)
-                if batch_num % 20 == 0 or batch_num == total_batches:
-                    print(f"Batch {batch_num}/{total_batches}: {inserted_count} inserted", file=sys.stderr)
             else:
                 failed_count += len(batch)
-                print(f"Batch {batch_num} failed: {response.status_code}", file=sys.stderr)
-        except Exception as e:
+        except:
             failed_count += len(batch)
-            print(f"Batch {batch_num} error: {str(e)[:100]}", file=sys.stderr)
 
-    print(f"\nFinal: {inserted_count} inserted, {failed_count} failed", file=sys.stderr)
-
-    # Create upload history record
-    upload_record = {
-        'filename': Path(filepath).name,
-        'total_transactions': len(df),
-        'duplicates_removed': 0,
-        'mapping_coverage': round(mapping_coverage, 2),
-        'unmapped_revenue': float(unmapped_revenue),
-        'status': 'success',
-        'processed_at': datetime.now().isoformat()
-    }
-    requests.post(
-        f"{SUPABASE_URL}/rest/v1/upload_history",
-        headers=headers,
-        data=json.dumps([upload_record])
-    )
+    print(f"Upload complete: {inserted_count} inserted", file=sys.stderr)
 
     # Return result
     result = {
