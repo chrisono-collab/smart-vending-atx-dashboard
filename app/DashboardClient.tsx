@@ -420,7 +420,9 @@ export default function DashboardClient({ transactions, locations }: DashboardCl
   // Format date range display
   const formatDateRange = () => {
     const options: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric" };
-    return `${dateRange.start.toLocaleDateString("en-US", options)} - ${dateRange.end.toLocaleDateString("en-US", options)}`;
+    const startDate = new Date(dateRange.start + 'T00:00:00'); // Add time to prevent timezone shift
+    const endDate = new Date(dateRange.end + 'T00:00:00');
+    return `${startDate.toLocaleDateString("en-US", options)} - ${endDate.toLocaleDateString("en-US", options)}`;
   };
 
   const iconMap: Record<string, typeof DollarSign> = {
