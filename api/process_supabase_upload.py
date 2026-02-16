@@ -40,8 +40,8 @@ def fetch_mappings():
 
     return sku_mappings, location_mappings
 
-def create_dedup_key(row, index):
-    """Create deduplication key with row index for uniqueness"""
+def create_dedup_key(row, index=None):
+    """Create deduplication key based on transaction data (no index for cross-upload dedup)"""
     import re
     timestamp = pd.to_datetime(row.get('Timestamp'), errors='coerce')
     ts_str = timestamp.strftime('%Y-%m-%dT%H:%M:%S') if pd.notna(timestamp) else 'unknown'
@@ -53,7 +53,8 @@ def create_dedup_key(row, index):
     product = re.sub(r'[^a-z0-9]', '', str(row.get('Product', '')).lower())
     total = round(float(row.get('Total', 0)), 2)
 
-    return f"{ts_str}_{machine_id}_{product}_{total}_{index}"
+    # No index - same transaction = same key across uploads for proper deduplication
+    return f"{ts_str}_{machine_id}_{product}_{total}"
 
 def clean_location(location, machine, location_map):
     """Clean location name"""
@@ -159,21 +160,8 @@ def process_file(filepath):
     df['Location'] = df.apply(extract_location, axis=1)
     print(f"Fixed NULL locations", file=sys.stderr)
 
-    # Delete ALL existing transactions first
-    print("Deleting all existing transactions...", file=sys.stderr)
-    try:
-        # Fast delete using RPC or direct SQL would be better, but this works
-        delete_response = requests.delete(
-            f"{SUPABASE_URL}/rest/v1/transactions?id=gte.0",
-            headers=headers,
-            timeout=5
-        )
-        if delete_response.status_code in [200, 204]:
-            print("✓ Deleted existing data", file=sys.stderr)
-        else:
-            print(f"⚠ Delete status: {delete_response.status_code}", file=sys.stderr)
-    except Exception as e:
-        print(f"⚠ Delete error: {str(e)[:50]}", file=sys.stderr)
+    # Incremental upload - append new transactions, dedup_key prevents duplicates
+    print("Uploading new transactions (deduping against existing)...", file=sys.stderr)
 
     raw_count = len(df)
     print(f"Raw transactions: {raw_count}", file=sys.stderr)
@@ -182,8 +170,8 @@ def process_file(filepath):
     df['Timestamp'] = pd.to_datetime(df['Timestamp'], errors='coerce')
     df['date'] = df['Timestamp'].dt.date
 
-    # Create dedup keys with row index for uniqueness
-    df['dedup_key'] = df.apply(lambda row: create_dedup_key(row, row.name), axis=1)
+    # Create dedup keys based on transaction data (no index = proper cross-upload dedup)
+    df['dedup_key'] = df.apply(lambda row: create_dedup_key(row), axis=1)
 
     # Clean locations
     df['location'] = df.apply(lambda row: clean_location(row['Location'], row['Machine'], location_map), axis=1)
