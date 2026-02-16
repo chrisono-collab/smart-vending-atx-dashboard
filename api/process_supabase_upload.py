@@ -159,9 +159,21 @@ def process_file(filepath):
     df['Location'] = df.apply(extract_location, axis=1)
     print(f"Fixed NULL locations", file=sys.stderr)
 
-    # NOTE: Skipping delete to avoid serverless timeout
-    # The unique dedup_key constraint will prevent duplicates
-    print("Skipping delete to avoid timeout - relying on dedup_key uniqueness", file=sys.stderr)
+    # Delete ALL existing transactions first
+    print("Deleting all existing transactions...", file=sys.stderr)
+    try:
+        # Fast delete using RPC or direct SQL would be better, but this works
+        delete_response = requests.delete(
+            f"{SUPABASE_URL}/rest/v1/transactions?id=gte.0",
+            headers=headers,
+            timeout=5
+        )
+        if delete_response.status_code in [200, 204]:
+            print("✓ Deleted existing data", file=sys.stderr)
+        else:
+            print(f"⚠ Delete status: {delete_response.status_code}", file=sys.stderr)
+    except Exception as e:
+        print(f"⚠ Delete error: {str(e)[:50]}", file=sys.stderr)
 
     raw_count = len(df)
     print(f"Raw transactions: {raw_count}", file=sys.stderr)
