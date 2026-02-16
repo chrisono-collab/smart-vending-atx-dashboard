@@ -1,96 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { Upload, CheckCircle, XCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
-
-interface UploadResult {
-  success: boolean;
-  filename?: string;
-  totalTransactions?: number;
-  duplicatesRemoved?: number;
-  mappingCoverage?: number;
-  unmappedRevenue?: number;
-  totalRevenue?: number;
-  totalProfit?: number;
-  error?: string;
-}
+import TransactionUpload from "@/components/TransactionUpload";
 
 export default function UploadPage() {
-  const [isDragging, setIsDragging] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [result, setResult] = useState<UploadResult | null>(null);
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = () => {
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-
-    const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile && (droppedFile.name.endsWith('.xlsx') || droppedFile.name.endsWith('.xls'))) {
-      setFile(droppedFile);
-      setResult(null);
-    } else {
-      alert('Please upload an Excel file (.xlsx or .xls)');
-    }
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      setFile(selectedFile);
-      setResult(null);
-    }
-  };
-
-  const handleUpload = async () => {
-    if (!file) return;
-
-    setUploading(true);
-    setResult(null);
-
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setResult({
-          success: true,
-          ...data
-        });
-        setFile(null);
-      } else {
-        setResult({
-          success: false,
-          error: data.error || 'Upload failed'
-        });
-      }
-    } catch (error: any) {
-      setResult({
-        success: false,
-        error: error.message || 'Upload failed'
-      });
-    } finally {
-      setUploading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Header */}
@@ -99,7 +12,9 @@ export default function UploadPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-[#09fe94]">Admin - Upload Data</h1>
-              <p className="text-gray-400 text-sm mt-1">Upload transaction log files to Supabase</p>
+              <p className="text-gray-400 text-sm mt-1">
+                Client-side upload - No timeout limits!
+              </p>
             </div>
             <Link
               href="/"
@@ -112,136 +27,50 @@ export default function UploadPage() {
       </header>
 
       <main className="container mx-auto px-6 py-8 max-w-4xl">
-        {/* Upload Area */}
-        <div
-          className={`border-2 border-dashed rounded-2xl p-12 text-center transition-all ${
-            isDragging
-              ? 'border-[#09fe94] bg-[#09fe94]/5'
-              : 'border-[#333] hover:border-[#555]'
-          }`}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-        >
-          <Upload className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-          <h2 className="text-xl font-semibold mb-2">
-            {file ? file.name : 'Drag & drop your transaction log'}
-          </h2>
-          <p className="text-gray-400 mb-6">
-            {file ? 'Ready to upload' : 'or click to browse for Excel files (.xlsx, .xls)'}
-          </p>
-
-          <input
-            type="file"
-            accept=".xlsx,.xls"
-            onChange={handleFileSelect}
-            className="hidden"
-            id="fileInput"
-          />
-
-          <div className="flex gap-4 justify-center">
-            <label
-              htmlFor="fileInput"
-              className="px-6 py-3 bg-[#111] border border-[#333] text-white rounded-lg hover:bg-[#1a1a1a] transition-colors cursor-pointer"
-            >
-              Browse Files
-            </label>
-
-            {file && (
-              <button
-                onClick={handleUpload}
-                disabled={uploading}
-                className="px-6 py-3 bg-[#09fe94] text-black font-semibold rounded-lg hover:bg-[#07cc75] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                {uploading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  'Upload & Process'
-                )}
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Result Display */}
-        {result && (
-          <div className={`mt-8 rounded-2xl p-6 ${
-            result.success
-              ? 'bg-green-500/10 border-2 border-green-500/30'
-              : 'bg-red-500/10 border-2 border-red-500/30'
-          }`}>
-            <div className="flex items-center gap-3 mb-4">
-              {result.success ? (
-                <CheckCircle className="w-8 h-8 text-green-400" />
-              ) : (
-                <XCircle className="w-8 h-8 text-red-400" />
-              )}
-              <h3 className="text-xl font-semibold">
-                {result.success ? 'Upload Successful!' : 'Upload Failed'}
-              </h3>
-            </div>
-
-            {result.success ? (
-              <div className="grid grid-cols-2 gap-4 mt-6">
-                <div className="bg-black/30 rounded-lg p-4">
-                  <p className="text-gray-400 text-sm mb-1">Total Transactions</p>
-                  <p className="text-2xl font-bold text-[#09fe94]">{result.totalTransactions?.toLocaleString()}</p>
-                </div>
-                <div className="bg-black/30 rounded-lg p-4">
-                  <p className="text-gray-400 text-sm mb-1">Duplicates Removed</p>
-                  <p className="text-2xl font-bold text-yellow-400">{result.duplicatesRemoved?.toLocaleString()}</p>
-                </div>
-                <div className="bg-black/30 rounded-lg p-4">
-                  <p className="text-gray-400 text-sm mb-1">Mapping Coverage</p>
-                  <p className="text-2xl font-bold text-blue-400">{result.mappingCoverage?.toFixed(1)}%</p>
-                </div>
-                <div className="bg-black/30 rounded-lg p-4">
-                  <p className="text-gray-400 text-sm mb-1">Unmapped Revenue</p>
-                  <p className="text-2xl font-bold text-red-400">${result.unmappedRevenue?.toFixed(2)}</p>
-                </div>
-                <div className="bg-black/30 rounded-lg p-4">
-                  <p className="text-gray-400 text-sm mb-1">Total Revenue</p>
-                  <p className="text-2xl font-bold text-white">${result.totalRevenue?.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
-                </div>
-                <div className="bg-black/30 rounded-lg p-4">
-                  <p className="text-gray-400 text-sm mb-1">Total Profit</p>
-                  <p className="text-2xl font-bold text-[#09fe94]">${result.totalProfit?.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
-                </div>
-              </div>
-            ) : (
-              <p className="text-red-300">{result.error}</p>
-            )}
-          </div>
-        )}
+        {/* Upload Component */}
+        <TransactionUpload />
 
         {/* Instructions */}
         <div className="mt-8 bg-[#111] border border-[#222] rounded-2xl p-6">
-          <h3 className="text-lg font-semibold mb-4">📋 Instructions</h3>
-          <ul className="space-y-2 text-gray-300">
+          <h3 className="text-lg font-semibold mb-4">📋 How It Works</h3>
+          <ul className="space-y-3 text-gray-300">
             <li className="flex items-start gap-2">
-              <span className="text-[#09fe94] font-bold">1.</span>
-              <span>Export your transaction log from VendSoft/USAT as an Excel file</span>
+              <span className="text-[#09fe94] font-bold">✓</span>
+              <span>
+                <strong>Client-Side Processing:</strong> Your file is processed in your browser, not on the server. This eliminates timeout issues entirely.
+              </span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-[#09fe94] font-bold">2.</span>
-              <span>Drag & drop the file above or click "Browse Files" to select it</span>
+              <span className="text-[#09fe94] font-bold">✓</span>
+              <span>
+                <strong>Automatic Deduplication:</strong> The system creates unique keys based on timestamp, machine, product, and total. Re-uploading the same data won't create duplicates.
+              </span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-[#09fe94] font-bold">3.</span>
-              <span>Click "Upload & Process" to import transactions into Supabase</span>
+              <span className="text-[#09fe94] font-bold">✓</span>
+              <span>
+                <strong>Incremental Uploads:</strong> Upload any timeframe (1 day, 1 week, YTD) - the system adds only new transactions.
+              </span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-[#09fe94] font-bold">4.</span>
-              <span>The system will automatically deduplicate and map products</span>
+              <span className="text-[#09fe94] font-bold">✓</span>
+              <span>
+                <strong>Location Extraction:</strong> If the Location column is empty, the system extracts it from the Machine column automatically.
+              </span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-[#09fe94] font-bold">5.</span>
-              <span>Return to the dashboard to see your updated data</span>
+              <span className="text-[#09fe94] font-bold">✓</span>
+              <span>
+                <strong>Fast Batch Processing:</strong> Data is uploaded in batches of 100 rows for optimal speed and reliability.
+              </span>
             </li>
           </ul>
+
+          <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+            <p className="text-blue-300 text-sm">
+              <strong>💡 Pro Tip:</strong> After upload completes, refresh the dashboard page to see your updated data reflected in the charts and totals.
+            </p>
+          </div>
         </div>
       </main>
     </div>
